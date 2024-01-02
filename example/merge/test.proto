@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package example.merge;
+
+option go_package = "github.com/maxmzkr/protoc_merge/example/merge";
+
+enum TestEnum {
+  TEST_ENUM_C = 0;
+}
+
+message TestAdd {
+  optional int32 a = 1;
+  string b = 2;
+}
+
+message Test {
+  int32 a = 1;
+  string e = 2;
+
+  oneof test_oneof {
+    int32 c = 3;
+    string f = 4;
+  }
+
+  TestAdd g = 5;
+
+  reserved "removedFromReserved";
+  reserved "abc", "def";
+}
