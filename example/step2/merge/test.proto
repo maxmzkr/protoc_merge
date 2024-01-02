@@ -30,18 +30,13 @@ enum TestEnum {
   // A comment about MERGE_UNIQUE_ENUM_VALUE in merge
   MERGE_UNIQUE_ENUM_VALUE = 0;
   // A trailing comment about MERGE_UNIQUE_ENUM_VALUE in merge
-
-  // A detached comment about MERGE_REMOVED_ENUM_VALUE in merge
-
-  // A comment about MERGE_REMOVED_ENUM_VALUE in merge
-  MERGE_REMOVED_ENUM_VALUE = 1;
-  // A trailing comment about MERGE_REMOVED_ENUM_VALUE in merge
 }
 
 // A detached comment about Test in merge
 
 // A comment about Test in merge
 message Test {
+
   // A trailing comment about Test in merge
 
   // A detached comment about type_changed_from_int32_to_string in merge
@@ -86,6 +81,4 @@ message Test {
   // A comment about removed_by_reserved_name in merge
   reserved "removed_by_reserved_name";
   // A trailing comment about removed_by_reserved_name in merge
-
-  int32 removed_by_merge = 6;
 }

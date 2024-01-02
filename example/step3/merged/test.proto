@@ -1,0 +1,180 @@
+// A detached comment about syntax in base
+
+// A detached comment about syntax in merge
+
+// A comment about syntax in merge
+syntax = "proto3";
+// A trailing comment about syntax in merge
+
+// A detached comment about package in base
+
+// A detached comment about package in merge
+
+// A comment about package in merge
+package merged;
+// A trailing comment about package in merge
+
+////////
+// Dependencies from base
+////////
+
+// A detached comment about import in base
+
+// A detached comment about import in merge
+
+// A comment about import in merge
+import "google/protobuf/wrappers.proto";
+// A trailing comment about import in merge
+
+////////
+// Enums from base
+////////
+
+// A detached comment about TestEnum in base
+
+// A detached comment about TestEnum in merge
+
+// A comment about TestEnum in merge
+enum TestEnum {
+  // A trailing comment about TestEnum in merge
+
+  ////////
+  // Values from base
+  ////////
+
+  // A detached comment about BASE_UNIQUE_ENUM_VALUE in base
+
+  // A comment about BASE_UNIQUE_ENUM_VALUE in base
+  BASE_UNIQUE_ENUM_VALUE = 0;
+  // A trailing comment about BASE_UNIQUE_ENUM_VALUE in base
+
+  ////////
+  // Values from merge
+  ////////
+
+  // A detached comment about MERGE_UNIQUE_ENUM_VALUE in merge
+
+  // A comment about MERGE_UNIQUE_ENUM_VALUE in merge
+  MERGE_UNIQUE_ENUM_VALUE = 2;
+  // A trailing comment about MERGE_UNIQUE_ENUM_VALUE in merge
+
+  //Reserved because the field BASE_REMOVED_ENUM_VALUE was removed
+  reserved 1 to 1;
+
+  //Reserved because the field MERGE_REMOVED_ENUM_VALUE was removed
+  reserved 3 to 3;
+
+  reserved "BASE_REMOVED_ENUM_VALUE";
+
+  reserved "MERGE_REMOVED_ENUM_VALUE";
+
+}
+
+////////
+// Messages from base
+////////
+
+// A detached comment about Test in base
+
+// A comment about Test in merge
+message Test {
+  // A trailing comment about Test in base
+
+  ////////
+  // Fields from base
+  ////////
+
+  // A detached comment about type_changed_from_int32_to_string in base
+
+  // A trailing comment about Test in merge
+
+  // A detached comment about type_changed_from_int32_to_string in merge
+
+  // A comment about type_changed_from_int32_to_string in merge
+  string type_changed_from_int32_to_string = 1;
+  // A trailing comment about type_changed_from_int32_to_string in merge
+
+  // A detached comment about unique_to_base in base
+
+  // A comment about unique_to_base in base
+  int32 unique_to_base = 2;
+  // A trailing comment about unique_to_base in base
+
+  // A detached comment about test_enum in base
+
+  // A detached comment about test_enum in merge
+
+  // A comment about test_enum in merge
+  .merged.TestEnum test_enum = 3;
+  // A trailing comment about test_enum in merge
+
+  ////////
+  // Fields from merge
+  ////////
+
+  // A detached comment about unique_to_merge in merge
+
+  // A comment about unique_to_merge in merge
+  int32 unique_to_merge = 5;
+  // A trailing comment about unique_to_merge in merge
+
+  ////////
+  // Oneofs from base
+  ////////
+
+  // A detached comment about test_oneof in base
+
+  // A detached comment about test_oneof in merge
+
+  // A comment about test_oneof in merge
+  oneof test_oneof {
+    // A trailing comment about test_oneof in merge
+
+    ////////
+    // Fields from base
+    ////////
+
+    // A detached comment about oneof_type_changed_from_int32_to_string in base
+
+    // A detached comment about oneof_type_changed_from_int32_to_string in merge
+
+    // A comment about oneof_type_changed_from_int32_to_string in merge
+    string oneof_type_changed_from_int32_to_string = 7;
+    // A trailing comment about oneof_type_changed_from_int32_to_string in merge
+
+    // A detached comment about oneof_unique_to_base in base
+
+    // A comment about oneof_unique_to_base in base
+    .google.protobuf.StringValue oneof_unique_to_base = 8;
+    // A trailing comment about oneof_unique_to_base in base
+
+    ////////
+    // Fields from merge
+    ////////
+
+    // A detached comment about oneof_unique_to_merge in merge
+
+    // A comment about oneof_unique_to_merge in merge
+    .google.protobuf.StringValue oneof_unique_to_merge = 9;
+    // A trailing comment about oneof_unique_to_merge in merge
+
+  }
+
+  // Reserved because the field removed_by_base was removed
+  reserved 4 to 4;
+
+  // Reserved because the field removed_by_merge was removed
+  reserved 6 to 6;
+
+  // A detached comment about removed_by_reserved_name in merge
+
+  // A comment about removed_by_reserved_name in merge
+  reserved "removed_by_reserved_name";
+  // A trailing comment about removed_by_reserved_name in merge
+
+  reserved "removed_by_base";
+
+  reserved "removed_by_merge";
+
+}
+

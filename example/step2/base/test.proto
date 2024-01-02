@@ -1,0 +1,84 @@
+// A detached comment about syntax in base
+
+// A comment about syntax in base
+syntax = "proto3";
+// A trailing comment about syntax in base
+
+// A detached comment about package in base
+
+// A comment about package in base
+package base;
+// A trailing comment about package in base
+
+option go_package = "github.com/maxmzkr/protoc_merge/example/base";
+
+option test = "test";
+
+// A detached comment about import in base
+
+// A comment about import in base
+import "google/protobuf/wrappers.proto";
+// A trailing comment about import in base
+
+// A detached comment about TestEnum in base
+
+// A comment about TestEnum in base
+enum TestEnum {
+  // A trailing comment about TestEnum in base
+
+  // A detached comment about BASE_UNIQUE_ENUM_VALUE in base
+
+  // A comment about BASE_UNIQUE_ENUM_VALUE in base
+  BASE_UNIQUE_ENUM_VALUE = 0;
+  // A trailing comment about BASE_UNIQUE_ENUM_VALUE in base
+}
+
+// A detached comment about Test in base
+
+// A comment about Test in base
+message Test {
+  // A trailing comment about Test in base
+
+  // A detached comment about type_changed_from_int32_to_string in base
+
+  // A comment about type_changed_from_int32_to_string in base
+  int32 type_changed_from_int32_to_string = 1;
+  // A trailing comment about type_changed_from_int32_to_string in base
+
+  // A detached comment about unique_to_base in base
+
+  // A comment about unique_to_base in base
+  int32 unique_to_base = 2;
+  // A trailing comment about unique_to_base in base
+
+  // A detached comment about test_enum in base
+
+  // A comment about test_enum in base
+  TestEnum test_enum = 3;
+  // A trailing comment about test_enum in base
+
+  // A detached comment about test_oneof in base
+
+  // A comment about test_oneof in base
+  oneof test_oneof {
+    // A trailing comment about test_oneof in base
+
+    // A detached comment about oneof_type_changed_from_int32_to_string in base
+
+    // A comment about oneof_type_changed_from_int32_to_string in base
+    int32 oneof_type_changed_from_int32_to_string = 4;
+    // A trailing comment about oneof_type_changed_from_int32_to_string in base
+
+    // A detached comment about oneof_unique_to_base in base
+
+    // A comment about oneof_unique_to_base in base
+    google.protobuf.StringValue oneof_unique_to_base = 5;
+    // A trailing comment about oneof_unique_to_base in base
+  }
+
+  // A detached comment about removed_by_reserved_name in base
+
+  // A comment about removed_by_reserved_name in base
+  int32 removed_by_reserved_name = 6;
+  // A trailing comment about removed_by_reserved_name in base
+}

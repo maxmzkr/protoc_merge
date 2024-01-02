@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+import "google/protobuf/descriptor.proto";
+
+package options;
+
+extend google.protobuf.FileOptions {
+  optional string string_option = 50000;
+  optional Complex complex_option = 50001;
+}
+
+message Complex {
+  message Nested {
+    string string_option = 1;
+  }
+
+  int32 int32_option = 1;
+  Nested nested_option = 2;
+}

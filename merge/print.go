@@ -3,6 +3,7 @@ package merge
 import (
 	"fmt"
 	"io"
+	"log"
 	"strings"
 )
 
@@ -56,6 +57,8 @@ func Serialize(f *File) string {
 	buf.WriteString(fmt.Sprintf("package %s;\n", f.Package.Name))
 	writeTrailingComment(buf, f.Package.TrailingComments)
 
+	writeOptions(buf, f.Options)
+
 	for _, dependency := range f.Dependencies {
 		writeComments(buf, dependency.LeadingDetachedComments)
 		writeComment(buf, dependency.LeadingComments)
@@ -74,11 +77,21 @@ func Serialize(f *File) string {
 	return innerBuf.String()
 }
 
+func writeOptions(buf *indentWriter, options []*FileOption) {
+	for _, option := range options {
+		writeComments(buf, option.LeadingDetachedComments)
+		writeComment(buf, option.LeadingComments)
+		buf.WriteString(fmt.Sprintf("option %s = %s;\n", option.Name, option.Value))
+		writeTrailingComment(buf, option.TrailingComments)
+	}
+}
+
 func writeEnum(buf *indentWriter, e *Enum) {
 	writeComments(buf, e.LeadingDetachedComments)
 	writeComment(buf, e.LeadingComments)
 	buf.WriteString("enum " + e.Name + " {\n")
 	buf.Indent()
+	writeTrailingComment(buf, e.TrailingComments)
 
 	for _, value := range e.Values {
 		writeComments(buf, value.LeadingDetachedComments)
@@ -90,20 +103,19 @@ func writeEnum(buf *indentWriter, e *Enum) {
 	for _, range_ := range e.ReservedRanges {
 		writeComments(buf, range_.LeadingDetachedComments)
 		writeComment(buf, range_.LeadingComments)
-		buf.WriteString(fmt.Sprintf("reserved %d to %d;", range_.Start, range_.End))
+		buf.WriteString(fmt.Sprintf("reserved %d to %d;\n", range_.Start, range_.End))
 		writeTrailingComment(buf, range_.TrailingComments)
 	}
 
 	for _, name := range e.ReservedNames {
 		writeComments(buf, name.LeadingDetachedComments)
 		writeComment(buf, name.LeadingComments)
-		buf.WriteString(fmt.Sprintf("reserved \"%s\";", name.Name))
+		buf.WriteString(fmt.Sprintf("reserved \"%s\";\n", name.Name))
 		writeTrailingComment(buf, name.TrailingComments)
 	}
 
 	buf.Outdent()
-	buf.WriteString("}\n")
-	writeTrailingComment(buf, e.TrailingComments)
+	buf.WriteString("}\n\n")
 }
 
 func writeMessage(buf *indentWriter, m *Message) {
@@ -111,6 +123,7 @@ func writeMessage(buf *indentWriter, m *Message) {
 	writeComment(buf, m.LeadingComments)
 	buf.WriteString(fmt.Sprintf("message %s {\n", m.Name))
 	buf.Indent()
+	writeTrailingComment(buf, m.TrailingComments)
 
 	for _, nested := range m.Messages {
 		writeMessage(buf, nested)
@@ -129,22 +142,22 @@ func writeMessage(buf *indentWriter, m *Message) {
 	}
 
 	for _, range_ := range m.ReservedRanges {
+		log.Println(range_)
 		writeComments(buf, range_.LeadingDetachedComments)
 		writeComment(buf, range_.LeadingComments)
-		buf.WriteString(fmt.Sprintf("reserved %d to %d;", range_.Start, range_.End))
+		buf.WriteString(fmt.Sprintf("reserved %d to %d;\n", range_.Start, range_.End))
 		writeTrailingComment(buf, range_.TrailingComments)
 	}
 
 	for _, name := range m.ReservedNames {
 		writeComments(buf, name.LeadingDetachedComments)
 		writeComment(buf, name.LeadingComments)
-		buf.WriteString(fmt.Sprintf("reserved \"%s\";", name.Name))
+		buf.WriteString(fmt.Sprintf("reserved \"%s\";\n", name.Name))
 		writeTrailingComment(buf, name.TrailingComments)
 	}
 
 	buf.Outdent()
-	buf.WriteString("}")
-	writeTrailingComment(buf, m.TrailingComments)
+	buf.WriteString("}\n\n")
 }
 
 func writeField(buf *indentWriter, f *Field) {
@@ -163,14 +176,14 @@ func writeOneof(buf *indentWriter, o *Oneof) {
 	writeComment(buf, o.LeadingComments)
 	buf.WriteString(fmt.Sprintf("oneof %s {\n", o.Name))
 	buf.Indent()
+	writeTrailingComment(buf, o.TrailingComments)
 
 	for _, field := range o.Fields {
 		writeField(buf, field)
 	}
 
 	buf.Outdent()
-	buf.WriteString("}\n")
-	writeTrailingComment(buf, o.TrailingComments)
+	buf.WriteString("}\n\n")
 }
 
 func writeComments(buf *indentWriter, comments []string) {

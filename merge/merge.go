@@ -2,16 +2,14 @@ package merge
 
 import (
 	"fmt"
+	"log"
 	"strings"
 )
 
 type MergeSpec struct {
-	BasePaths     map[string]bool
-	BasePackage   string
 	MergePackage  string
 	MergedPackage string
 
-	// file path prefixes to change dependencies
 	MergePrefix  string
 	MergedPrefix string
 }
@@ -34,15 +32,17 @@ type numberer struct {
 	next     int32
 }
 
-func newNumberer() *numberer {
+func newNumberer(start int32) *numberer {
 	return &numberer{
 		reserved: make(map[string]int32),
 		used:     make(map[int32]bool),
+		next:     start - 1,
 	}
 }
 
 func (n *numberer) use(name string, number int32) {
 	n.reserved[name] = number
+	n.used[number] = true
 }
 
 func (n *numberer) number(name string) int32 {
@@ -65,10 +65,16 @@ func (s *MergeSpec) MergeFile(base *File, merge *File, merged *File) *File {
 	out := &File{}
 
 	out.Syntax = &Syntax{
-		LeadingDetachedComments: append(append([]string{}, base.Syntax.LeadingDetachedComments...), merge.Syntax.LeadingDetachedComments...),
-		LeadingComments:         base.Syntax.LeadingComments,
-		TrailingComments:        base.Syntax.TrailingComments,
-		Name:                    "proto3",
+		LeadingDetachedComments: append(
+			append(
+				[]string{},
+				base.Syntax.LeadingDetachedComments...,
+			),
+			merge.Syntax.LeadingDetachedComments...,
+		),
+		LeadingComments:  base.Syntax.LeadingComments,
+		TrailingComments: base.Syntax.TrailingComments,
+		Name:             "proto3",
 	}
 	if len(merge.Syntax.LeadingComments) > 0 {
 		out.Syntax.LeadingComments = merge.Syntax.LeadingComments
@@ -96,6 +102,8 @@ func (s *MergeSpec) MergeFile(base *File, merge *File, merged *File) *File {
 	for _, d := range merge.Dependencies {
 		mergeDeps[d.Name] = d
 	}
+
+	out.Options = s.mergeOptions(base, merge)
 
 	first := true
 	for _, based := range base.Dependencies {
@@ -137,13 +145,76 @@ func (s *MergeSpec) MergeFile(base *File, merge *File, merged *File) *File {
 		out.Dependencies = append(out.Dependencies, outD)
 	}
 
-	out.Enums = s.mergeEnums(base, merge, merged, base.Package.Name)
-	out.Messages = s.mergeMessages(base, merge, merged, base.Package.Name)
+	out.Enums = s.mergeEnums(base, merge, merged)
+	out.Messages = s.mergeMessages(base, merge, merged)
 
 	return out
 }
 
-func (s *MergeSpec) mergeEnums(base, merge, merged EnumHaver, path string) []*Enum {
+func (s *MergeSpec) mergeOptions(base, merge *File) []*FileOption {
+	out := []*FileOption{}
+	outMap := map[string]*FileOption{}
+
+	mergeMap := map[string]*FileOption{}
+	for _, o := range merge.Options {
+		mergeMap[o.Name] = o
+	}
+
+	first := true
+	for _, baseO := range base.Options {
+		log.Printf("base \"%s\"", baseO.Name)
+		mergeO, ok := mergeMap[baseO.Name]
+		if !ok {
+			mergeO = &FileOption{
+				Name: baseO.Name,
+			}
+		}
+
+		outO := &FileOption{
+			LeadingDetachedComments: append(append([]string{}, baseO.LeadingDetachedComments...), mergeO.LeadingDetachedComments...),
+			LeadingComments:         baseO.LeadingComments,
+			TrailingComments:        baseO.TrailingComments,
+			Name:                    baseO.Name,
+			Value:                   mergeO.Value,
+		}
+
+		if first {
+			first = false
+			outO.LeadingDetachedComments = append([]string{"//////\n Options from base\n//////\n"}, outO.LeadingDetachedComments...)
+		}
+
+		out = append(out, outO)
+		outMap[outO.Name] = outO
+	}
+
+	first = true
+	for _, mergeO := range merge.Options {
+		log.Printf("merge \"%s\"", mergeO.Name)
+		if _, ok := outMap[mergeO.Name]; ok {
+			continue
+		}
+
+		outO := &FileOption{
+			LeadingDetachedComments: append([]string{}, mergeO.LeadingDetachedComments...),
+			LeadingComments:         mergeO.LeadingComments,
+			TrailingComments:        mergeO.TrailingComments,
+			Name:                    mergeO.Name,
+			Value:                   mergeO.Value,
+		}
+
+		if first {
+			first = false
+			outO.LeadingDetachedComments = append([]string{"//////\n Options from merge\n//////\n"}, outO.LeadingDetachedComments...)
+		}
+
+		out = append(out, outO)
+		outMap[outO.Name] = outO
+	}
+
+	return out
+}
+
+func (s *MergeSpec) mergeEnums(base, merge, merged EnumHaver) []*Enum {
 	out := []*Enum{}
 	outMap := map[string]*Enum{}
 
@@ -164,11 +235,6 @@ func (s *MergeSpec) mergeEnums(base, merge, merged EnumHaver, path string) []*En
 
 	first := true
 	for _, baseE := range base.GetEnums() {
-		path := fmt.Sprintf("%s.%s", path, baseE.Name)
-		if _, ok := s.BasePaths[path]; !ok {
-			continue
-		}
-
 		mergeE, ok := mergeMap[baseE.Name]
 		if !ok {
 			mergeE = &Enum{
@@ -194,32 +260,32 @@ func (s *MergeSpec) mergeEnums(base, merge, merged EnumHaver, path string) []*En
 		outMap[outE.Name] = outE
 	}
 
-	first = true
-	for _, mergeE := range merge.GetEnums() {
-		if _, ok := outMap[mergeE.Name]; ok {
-			continue
-		}
+	// first = true
+	// for _, mergeE := range merge.GetEnums() {
+	// 	if _, ok := outMap[mergeE.Name]; ok {
+	// 		continue
+	// 	}
 
-		baseE := &Enum{
-			Name: mergeE.Name,
-		}
+	// 	baseE := &Enum{
+	// 		Name: mergeE.Name,
+	// 	}
 
-		mergedE, ok := mergedMap[mergeE.Name]
-		if !ok {
-			mergedE = &Enum{
-				Name: mergeE.Name,
-			}
-		}
+	// 	mergedE, ok := mergedMap[mergeE.Name]
+	// 	if !ok {
+	// 		mergedE = &Enum{
+	// 			Name: mergeE.Name,
+	// 		}
+	// 	}
 
-		outE := s.mergeEnum(baseE, mergeE, mergedE)
+	// 	outE := s.mergeEnum(baseE, mergeE, mergedE)
 
-		if first {
-			first = false
-			outE.LeadingDetachedComments = append([]string{"//////\n Enums from merge\n//////\n"}, outE.LeadingDetachedComments...)
-		}
+	// 	if first {
+	// 		first = false
+	// 		outE.LeadingDetachedComments = append([]string{"//////\n Enums from merge\n//////\n"}, outE.LeadingDetachedComments...)
+	// 	}
 
-		out = append(out, mergeE)
-	}
+	// 	out = append(out, mergeE)
+	// }
 
 	return out
 }
@@ -242,7 +308,7 @@ func (s *MergeSpec) mergeEnum(base, merge, merged *Enum) *Enum {
 
 	usedNumbers := map[int32]bool{}
 
-	numberer := newNumberer()
+	numberer := newNumberer(0)
 	for _, v := range merged.ReservedRanges {
 		for i := v.Start; i <= v.End; i++ {
 			numberer.use("", i)
@@ -313,6 +379,7 @@ func (s *MergeSpec) mergeEnum(base, merge, merged *Enum) *Enum {
 		}
 
 		out.Values = append(out.Values, outV)
+		outMap[outV.Name] = outV
 	}
 
 	out.ReservedNames = append(out.ReservedNames, merge.ReservedNames...)
@@ -322,7 +389,7 @@ func (s *MergeSpec) mergeEnum(base, merge, merged *Enum) *Enum {
 			continue
 		}
 		out.ReservedRanges = append(out.ReservedRanges, &ReservedRange{
-			LeadingComments: fmt.Sprintf("Reserved because the field %s was removed", mergedV.Name),
+			LeadingComments: fmt.Sprintf("Reserved because the field %s was removed\n", mergedV.Name),
 			Start:           mergedV.Number,
 			End:             mergedV.Number,
 		})
@@ -365,7 +432,7 @@ func (s *MergeSpec) mergeEnumValue(base, merge *EnumValue, numberer *numberer) *
 	return out
 }
 
-func (s *MergeSpec) mergeMessages(base, merge, merged MessageHaver, path string) []*Message {
+func (s *MergeSpec) mergeMessages(base, merge, merged MessageHaver) []*Message {
 	out := []*Message{}
 	outMap := map[string]*Message{}
 
@@ -386,16 +453,9 @@ func (s *MergeSpec) mergeMessages(base, merge, merged MessageHaver, path string)
 
 	first := true
 	for _, baseM := range base.GetMessages() {
-		path := fmt.Sprintf("%s.%s", path, baseM.Name)
-		if _, ok := s.BasePaths[path]; !ok {
-			continue
-		}
-
 		mergeM, ok := mergeMap[baseM.Name]
 		if !ok {
-			mergeM = &Message{
-				Name: baseM.Name,
-			}
+			continue
 		}
 
 		mergedM, ok := mergedMap[baseM.Name]
@@ -405,7 +465,7 @@ func (s *MergeSpec) mergeMessages(base, merge, merged MessageHaver, path string)
 			}
 		}
 
-		outM := s.mergeMessage(baseM, mergeM, mergedM, path)
+		outM := s.mergeMessage(baseM, mergeM, mergedM)
 
 		if first {
 			first = false
@@ -416,37 +476,32 @@ func (s *MergeSpec) mergeMessages(base, merge, merged MessageHaver, path string)
 		outMap[outM.Name] = outM
 	}
 
-	first = true
-	for _, mergeM := range merge.GetMessages() {
-		path := fmt.Sprintf("%s.%s", path, mergeM.Name)
-		if _, ok := outMap[mergeM.Name]; ok {
-			continue
-		}
+	// first = true
+	// for _, mergeM := range merge.GetMessages() {
+	// 	baseM := &Message{
+	// 		Name: mergeM.Name,
+	// 	}
 
-		baseM := &Message{
-			Name: mergeM.Name,
-		}
+	// 	mergedM, ok := mergedMap[mergeM.Name]
+	// 	if !ok {
+	// 		mergedM = &Message{
+	// 			Name: mergeM.Name,
+	// 		}
+	// 	}
+	// 	outM := s.mergeMessage(baseM, mergeM, mergedM)
 
-		mergedM, ok := mergedMap[mergeM.Name]
-		if !ok {
-			mergedM = &Message{
-				Name: mergeM.Name,
-			}
-		}
-		outM := s.mergeMessage(baseM, mergeM, mergedM, path)
+	// 	if first {
+	// 		first = false
+	// 		outM.LeadingDetachedComments = append([]string{"//////\n Messages from merge\n//////\n"}, outM.LeadingDetachedComments...)
+	// 	}
 
-		if first {
-			first = false
-			outM.LeadingDetachedComments = append([]string{"//////\n Messages from merge\n//////\n"}, outM.LeadingDetachedComments...)
-		}
-
-		out = append(out, outM)
-	}
+	// 	out = append(out, outM)
+	// }
 
 	return out
 }
 
-func (s *MergeSpec) mergeMessage(base, merge, merged *Message, path string) *Message {
+func (s *MergeSpec) mergeMessage(base, merge, merged *Message) *Message {
 	out := &Message{
 		Name:                    base.Name,
 		LeadingDetachedComments: append(append([]string{}, base.LeadingDetachedComments...), merge.LeadingDetachedComments...),
@@ -460,10 +515,10 @@ func (s *MergeSpec) mergeMessage(base, merge, merged *Message, path string) *Mes
 		out.TrailingComments = merge.TrailingComments
 	}
 
-	out.Enums = s.mergeEnums(base, merge, merged, path)
-	out.Messages = s.mergeMessages(base, merge, merged, path)
+	out.Enums = s.mergeEnums(base, merge, merged)
+	out.Messages = s.mergeMessages(base, merge, merged)
 
-	numberer := newNumberer()
+	numberer := newNumberer(1)
 	for _, f := range merged.ReservedRanges {
 		for i := f.Start; i <= f.End; i++ {
 			numberer.use("", i)
@@ -567,7 +622,7 @@ func (s *MergeSpec) mergeMessage(base, merge, merged *Message, path string) *Mes
 			continue
 		}
 		out.ReservedRanges = append(out.ReservedRanges, &ReservedRange{
-			LeadingComments: fmt.Sprintf(" Reserved because the field %s was removed", f.Name),
+			LeadingComments: fmt.Sprintf(" Reserved because the field %s was removed\n", f.Name),
 			Start:           f.Number,
 			End:             f.Number,
 		})
@@ -665,12 +720,6 @@ func (s *MergeSpec) mergeField(base, merge *Field, numberer *numberer) *Field {
 		out.TrailingComments = merge.TrailingComments
 	}
 
-	if s.BasePaths[strings.TrimPrefix(out.Type, ".")] {
-		replace := fmt.Sprintf(".%s", s.BasePackage)
-		if strings.HasPrefix(out.Type, replace) {
-			out.Type = strings.Replace(out.Type, replace, fmt.Sprintf(".%s", s.MergedPackage), 1)
-		}
-	}
 	replace := fmt.Sprintf(".%s", s.MergePackage)
 	if strings.HasPrefix(merge.Type, replace) {
 		out.Type = strings.Replace(out.Type, replace, fmt.Sprintf(".%s", s.MergedPackage), 1)

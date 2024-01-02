@@ -1,6 +1,8 @@
 package merge
 
 import (
+	"fmt"
+	"log"
 	"slices"
 	"strings"
 
@@ -42,8 +44,9 @@ func ParseFile(f *descriptorpb.FileDescriptorProto) *File {
 			// I don't think we'll handle extensions
 			locations = consumeLocation(locations)
 		case 8:
-			// TODO handle file options
-			locations = consumeLocation(locations)
+			var fileOption *FileOption
+			locations, fileOption = parseFileOption(locations, f.GetOptions())
+			out.Options = append(out.Options, fileOption)
 		case 12:
 			var syntax *Syntax
 			locations, syntax = parseSyntax(locations, f.GetSyntax())
@@ -119,17 +122,13 @@ func parseMessage(locations []*descriptorpb.SourceCodeInfo_Location, m *descript
 			locations, oneof = parseOneof(locations, m, m.GetOneofDecl()[location.GetPath()[nested+1]])
 			out.Oneofs = append(out.Oneofs, oneof)
 		case 9:
-			var reservedRange *ReservedRange
-			locations, reservedRange = parseReservedRange(locations, m.GetReservedRange()[location.GetPath()[nested+1]])
-			out.ReservedRanges = append(out.ReservedRanges, reservedRange)
+			var reservedRanges []*ReservedRange
+			locations, reservedRanges = parseReservedRanges(locations, m.GetReservedRange())
+			out.ReservedRanges = append(out.ReservedRanges, reservedRanges...)
 		case 10:
-			if len(location.GetPath()) == nested+1 {
-				locations = locations[1:]
-				continue
-			}
-			var reservedName *ReservedName
-			locations, reservedName = parseReservedName(locations, m.GetReservedName()[location.GetPath()[nested+1]])
-			out.ReservedNames = append(out.ReservedNames, reservedName)
+			var reservedNames []*ReservedName
+			locations, reservedNames = parseReservedNames(locations, m.GetReservedName())
+			out.ReservedNames = append(out.ReservedNames, reservedNames...)
 		default:
 			locations = locations[1:]
 		}
@@ -178,7 +177,7 @@ func parseEnum(locations []*descriptorpb.SourceCodeInfo_Location, e *descriptorp
 	locations = locations[1:]
 	nested := len(startLocation.GetPath())
 	for len(locations) > 0 &&
-		len(locations) >= nested &&
+		len(locations[0].GetPath()) >= nested &&
 		locations[0].GetPath()[nested-2] == startLocation.GetPath()[nested-2] &&
 		locations[0].GetPath()[nested-1] == startLocation.GetPath()[nested-1] {
 
@@ -195,13 +194,13 @@ func parseEnum(locations []*descriptorpb.SourceCodeInfo_Location, e *descriptorp
 			// TODO handle enum options
 			locations = consumeLocation(locations)
 		case 4:
-			var reservedRange *ReservedRange
-			locations, reservedRange = parseReservedRange(locations, e.GetReservedRange()[location.GetPath()[nested+1]])
-			out.ReservedRanges = append(out.ReservedRanges, reservedRange)
+			var reservedRanges []*ReservedRange
+			locations, reservedRanges = parseReservedRanges(locations, e.GetReservedRange())
+			out.ReservedRanges = append(out.ReservedRanges, reservedRanges...)
 		case 5:
-			var reservedName *ReservedName
-			locations, reservedName = parseReservedName(locations, e.GetReservedName()[location.GetPath()[nested+1]])
-			out.ReservedNames = append(out.ReservedNames, reservedName)
+			var reservedNames []*ReservedName
+			locations, reservedNames = parseReservedNames(locations, e.GetReservedName())
+			out.ReservedNames = append(out.ReservedNames, reservedNames...)
 		default:
 			locations = locations[1:]
 		}
@@ -228,16 +227,79 @@ type reservedRange interface {
 	GetEnd() int32
 }
 
+func parseReservedRanges[T reservedRange](locations []*descriptorpb.SourceCodeInfo_Location, r []T) ([]*descriptorpb.SourceCodeInfo_Location, []*ReservedRange) {
+	out := []*ReservedRange{}
+
+	startLocation := locations[0]
+	locations = locations[1:]
+	nested := len(startLocation.GetPath())
+
+	// reservedRanges have a three path element as the first element. So we have to use the span to determine the end
+	endLine := startLocation.GetSpan()[0]
+	endColumn := startLocation.GetSpan()[2]
+	if len(startLocation.GetSpan()) > 3 {
+		endLine = endColumn
+		endColumn = startLocation.GetSpan()[3]
+	}
+
+	for len(locations) > 0 &&
+		(locations[0].GetSpan()[0] < endLine ||
+			(locations[0].GetSpan()[0] == endLine &&
+				locations[0].GetSpan()[1] < endColumn)) {
+		var reservedRange *ReservedRange
+		locations, reservedRange = parseReservedRange(locations, r[locations[0].GetPath()[nested]])
+		out = append(out, reservedRange)
+	}
+
+	out[0].LeadingDetachedComments = startLocation.GetLeadingDetachedComments()
+	out[0].LeadingComments = startLocation.GetLeadingComments()
+	out[len(out)-1].TrailingComments = startLocation.GetTrailingComments()
+
+	return locations, out
+}
+
 func parseReservedRange(locations []*descriptorpb.SourceCodeInfo_Location, r reservedRange) ([]*descriptorpb.SourceCodeInfo_Location, *ReservedRange) {
 	out := &ReservedRange{
 		LeadingDetachedComments: locations[0].GetLeadingDetachedComments(),
 		LeadingComments:         locations[0].GetLeadingComments(),
 		TrailingComments:        locations[0].GetTrailingComments(),
 		Start:                   r.GetStart(),
-		End:                     r.GetEnd(),
+		// While it is inclusive in the protobufs, it's exclusive in the reservedRange
+		End: r.GetEnd() - 1,
 	}
 
 	locations = consumeLocation(locations)
+
+	return locations, out
+}
+
+func parseReservedNames(locations []*descriptorpb.SourceCodeInfo_Location, r []string) ([]*descriptorpb.SourceCodeInfo_Location, []*ReservedName) {
+	out := []*ReservedName{}
+
+	startLocation := locations[0]
+	locations = locations[1:]
+	nested := len(startLocation.GetPath())
+
+	// reservedNames have a three path element as the first element. So we have to use the span to determine the end
+	endLine := startLocation.GetSpan()[0]
+	endColumn := startLocation.GetSpan()[2]
+	if len(startLocation.GetSpan()) > 3 {
+		endLine = endColumn
+		endColumn = startLocation.GetSpan()[3]
+	}
+
+	for len(locations) > 0 &&
+		(locations[0].GetSpan()[0] < endLine ||
+			(locations[0].GetSpan()[0] == endLine &&
+				locations[0].GetSpan()[1] < endColumn)) {
+		var reservedName *ReservedName
+		locations, reservedName = parseReservedName(locations, r[locations[0].GetPath()[nested]])
+		out = append(out, reservedName)
+	}
+
+	out[0].LeadingDetachedComments = startLocation.GetLeadingDetachedComments()
+	out[0].LeadingComments = startLocation.GetLeadingComments()
+	out[len(out)-1].TrailingComments = startLocation.GetTrailingComments()
 
 	return locations, out
 }
@@ -253,6 +315,27 @@ func parseReservedName(locations []*descriptorpb.SourceCodeInfo_Location, r stri
 	return locations[1:], out
 }
 
+func parseFileOption(locations []*descriptorpb.SourceCodeInfo_Location, o *descriptorpb.FileOptions) ([]*descriptorpb.SourceCodeInfo_Location, *FileOption) {
+	out := &FileOption{
+		LeadingDetachedComments: locations[0].GetLeadingDetachedComments(),
+		LeadingComments:         locations[0].GetLeadingComments(),
+		TrailingComments:        locations[0].GetTrailingComments(),
+	}
+
+	// The first location is a 1 path element, so we can skip it
+	locations = locations[1:]
+	location := locations[0]
+	fieldNumber := location.GetPath()[len(location.GetPath())-1]
+	switch fieldNumber {
+	case 11:
+		out.Name = "go_package"
+		out.Value = fmt.Sprintf("\"%s\"", o.GetGoPackage())
+	default:
+		log.Println(o.GetUninterpretedOption())
+	}
+	return consumeLocation(locations), out
+}
+
 func parseOneof(locations []*descriptorpb.SourceCodeInfo_Location, m *descriptorpb.DescriptorProto, o *descriptorpb.OneofDescriptorProto) ([]*descriptorpb.SourceCodeInfo_Location, *Oneof) {
 	out := &Oneof{
 		LeadingDetachedComments: locations[0].GetLeadingDetachedComments(),
@@ -265,7 +348,7 @@ func parseOneof(locations []*descriptorpb.SourceCodeInfo_Location, m *descriptor
 	locations = locations[1:]
 	nested := len(startLocation.GetPath())
 	for len(locations) > 0 &&
-		len(locations) >= nested &&
+		len(locations[0].GetPath()) >= nested &&
 		locations[0].GetPath()[nested-2] == startLocation.GetPath()[nested-2] &&
 		locations[0].GetPath()[nested-1] == startLocation.GetPath()[nested-1] {
 
@@ -285,7 +368,7 @@ func parseOneof(locations []*descriptorpb.SourceCodeInfo_Location, m *descriptor
 	// parse the one of fields using the spans as a guide
 	endLine := startLocation.GetSpan()[0]
 	endColumn := startLocation.GetSpan()[2]
-	if len(startLocation.GetSpan()) > 0 {
+	if len(startLocation.GetSpan()) > 3 {
 		endLine = endColumn
 		endColumn = startLocation.GetSpan()[3]
 	}

@@ -3,6 +3,7 @@ package merge
 type File struct {
 	Syntax       *Syntax
 	Package      *Package
+	Options      []*FileOption
 	Dependencies []*Dependency
 	Enums        []*Enum
 	Messages     []*Message
@@ -16,10 +17,12 @@ func (f *File) GetMessages() []*Message {
 	return f.Messages
 }
 
-type Option struct {
+type FileOption struct {
 	LeadingDetachedComments []string
 	LeadingComments         string
 	TrailingComments        string
+	Name                    string
+	Value                   string
 }
 
 type Syntax struct {
